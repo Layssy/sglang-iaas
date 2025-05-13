@@ -211,7 +211,8 @@ class Scheduler(
         )
 
         # Distributed rank info
-        self.attn_tp_rank, self.attn_tp_size, self.dp_rank = (
+        self.dp_size = server_args.dp_size
+        self.attn_tp_rank, self.attn_tp_size, self.attn_dp_rank = (
             compute_dp_attention_world_info(
                 server_args.enable_dp_attention,
                 self.tp_rank,
@@ -789,7 +790,7 @@ class Scheduler(
                         )
 
                     # send out reqs to the next stage
-                    dp_offset = self.dp_rank * self.attn_tp_size
+                    dp_offset = self.attn_dp_rank * self.attn_tp_size
                     if self.attn_tp_rank == 0:
                         point_to_point_pyobj(
                             recv_reqs,
@@ -836,7 +837,7 @@ class Scheduler(
                 recv_reqs = None
         else:
             if self.attn_tp_rank == 0:
-                dp_offset = self.dp_rank * self.attn_tp_size
+                dp_offset = self.attn_dp_rank * self.attn_tp_size
                 recv_reqs = point_to_point_pyobj(
                     [],
                     self.pp_rank * self.tp_size + dp_offset,
@@ -1654,6 +1655,7 @@ class Scheduler(
             local_batch,
             dp_size=self.server_args.dp_size,
             attn_tp_size=self.attn_tp_size,
+            moe_dense_tp_size=self.server_args.moe_dense_tp_size,
             tp_cpu_group=self.tp_cpu_group,
             get_idle_batch=self.get_idle_batch,
             disable_cuda_graph=self.server_args.disable_cuda_graph,
@@ -1666,6 +1668,7 @@ class Scheduler(
         local_batch: ScheduleBatch,
         dp_size,
         attn_tp_size: int,
+        moe_dense_tp_size: Optional[int],
         tp_cpu_group,
         get_idle_batch,
         disable_cuda_graph: bool,
@@ -1675,15 +1678,15 @@ class Scheduler(
         # Check if other DP workers have running batches
         if local_batch is None:
             num_tokens = 0
-            global_num_tokens_for_logprob = 0
+            num_tokens_for_logprob = 0
         elif local_batch.forward_mode.is_decode():
             num_tokens = local_batch.batch_size()
             if not spec_algorithm.is_none() and spec_algorithm.is_eagle():
                 num_tokens = num_tokens * speculative_num_draft_tokens
-            global_num_tokens_for_logprob = num_tokens
+            num_tokens_for_logprob = num_tokens
         else:
             num_tokens = local_batch.extend_num_tokens
-            global_num_tokens_for_logprob = sum(
+            num_tokens_for_logprob = sum(
                 [
                     # We should have at least 1 token for sample in every case.
                     max(extend_len - logprob_start_len, 1)
@@ -1710,7 +1713,7 @@ class Scheduler(
             [
                 num_tokens,
                 can_cuda_graph,
-                global_num_tokens_for_logprob,
+                num_tokens_for_logprob,
                 is_extend_in_batch,
             ],
             dtype=torch.int64,
@@ -1733,8 +1736,15 @@ class Scheduler(
             local_batch = get_idle_batch()
 
         if local_batch is not None:
-            local_batch.global_num_tokens = global_num_tokens
-            local_batch.global_num_tokens_for_logprob = global_num_tokens_for_logprob
+            # TODO: handle the case when moe_dense_tp_size != 1
+            if moe_dense_tp_size == 1 and global_server_args_dict["enable_dp_lm_head"]:
+                local_batch.global_num_tokens = [num_tokens]
+                local_batch.global_num_tokens_for_logprob = [num_tokens_for_logprob]
+            else:
+                local_batch.global_num_tokens = global_num_tokens
+                local_batch.global_num_tokens_for_logprob = (
+                    global_num_tokens_for_logprob
+                )
 
             # Check forward mode for cuda graph
             if not disable_cuda_graph:
@@ -2226,8 +2236,8 @@ class Scheduler(
 
     def get_print_prefix(self):
         prefix = ""
-        if self.dp_rank is not None:
-            prefix += f" DP{self.dp_rank}"
+        if self.attn_dp_rank is not None:
+            prefix += f" DP{self.attn_dp_rank}"
         if self.server_args.tp_size > 1:
             prefix += f" TP{self.tp_rank}"
         if self.pp_size > 1:
