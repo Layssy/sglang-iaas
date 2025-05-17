@@ -41,7 +41,7 @@ from sglang.srt.layers.moe.ep_moe.kernels import (
     tma_align_input_scale,
 )
 from sglang.srt.layers.moe.fused_moe_triton import FusedMoeWeightScaleSupported
-from sglang.srt.layers.moe.fused_moe_triton.layer import FusedMoEMethodBase
+from sglang.srt.layers.moe.fused_moe_triton.layer import FusedMoE, FusedMoEMethodBase
 from sglang.srt.layers.moe.topk import select_experts
 from sglang.srt.layers.quantization.base_config import (
     QuantizationConfig,
@@ -50,7 +50,6 @@ from sglang.srt.layers.quantization.base_config import (
 from sglang.srt.layers.quantization.fp8 import Fp8Config, Fp8MoEMethod
 from sglang.srt.layers.quantization.fp8_kernel import scaled_fp8_quant
 from sglang.srt.model_executor.forward_batch_info import ForwardMode
-<<<<<<< HEAD
 from sglang.srt.utils import (
     DeepEPMode,
     get_bool_env_var,
@@ -58,9 +57,6 @@ from sglang.srt.utils import (
     is_hip,
     set_weight_attrs,
 )
-=======
-from sglang.srt.utils import DeepEPMode, dispose_tensor, is_hip, set_weight_attrs
->>>>>>> f194e14f (Reduce MoE memory usage (#6147))
 
 _is_hip = is_hip()
 
@@ -1305,3 +1301,11 @@ class DeepEPMoE(EPMoE):
         )
 
         return down_output
+
+
+def get_moe_impl_class():
+    if global_server_args_dict["enable_deepep_moe"]:
+        return DeepEPMoE
+    if global_server_args_dict["enable_ep_moe"]:
+        return EPMoE
+    return FusedMoE
