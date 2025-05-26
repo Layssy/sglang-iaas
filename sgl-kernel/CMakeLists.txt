@@ -44,13 +44,8 @@ include(FetchContent)
 # cutlass
 FetchContent_Declare(
     repo-cutlass
-<<<<<<< HEAD
     GIT_REPOSITORY https://github.com/NVIDIA/cutlass
     GIT_TAG        e94e888df3551224738bfa505787b515eae8352f
-=======
-    GIT_REPOSITORY https://github.com/solrex/cutlass
-    GIT_TAG        8f69d8ef2cde1e46c491a79fc6da30c8ee4a51e2
->>>>>>> 8972c7bb (Add SM89 blockwise fp8 kernel.)
     GIT_SHALLOW    OFF
 )
 FetchContent_Populate(repo-cutlass)
