@@ -44,8 +44,8 @@ include(FetchContent)
 # cutlass
 FetchContent_Declare(
     repo-cutlass
-    GIT_REPOSITORY https://github.com/solrex/cutlass
-    GIT_TAG        3fec616147f0d369617d8059daf9326ce93ce09c
+    GIT_REPOSITORY https://github.com/NVIDIA/cutlass
+    GIT_TAG        e94e888df3551224738bfa505787b515eae8352f
     GIT_SHALLOW    OFF
 )
 FetchContent_Populate(repo-cutlass)
@@ -69,7 +69,7 @@ FetchContent_Populate(repo-flashinfer)
 FetchContent_Declare(
     repo-flash-attention
     GIT_REPOSITORY https://github.com/sgl-project/sgl-attn
-    GIT_TAG        bf1e4ce51fc85370b9489976e8ccbe72eb71fefe
+    GIT_TAG        sgl-kernel
     GIT_SHALLOW    OFF
 )
 FetchContent_Populate(repo-flash-attention)
